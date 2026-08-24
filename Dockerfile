@@ -1,5 +1,5 @@
 # Dependencies and build
-FROM alpine:3.19 AS builder
+FROM alpine:3.20 AS builder
 
 # Install dependencies
 RUN apk add --no-cache bash gcc musl-dev libgcc

@@ -31,7 +31,7 @@ Some variables can be passed to the container to configure the way it runs.
 
 ## Docker CLI example
 ```
-docker pull ghcr.io/Rosen01/velserv:latest
+docker pull rosen01/velserv:latest
 docker run -p 3788:3788 --device=/dev/serial/by-id/usb-Velleman_Projects_VMB1USB_Velbus_USB_interface-if00:/dev/ttyACM0 -e "TZ=Europe/Brussels" -d velserv:latest
 ```
 
@@ -40,7 +40,7 @@ docker run -p 3788:3788 --device=/dev/serial/by-id/usb-Velleman_Projects_VMB1USB
 services:
   velserv:
     container_name: velserv
-    image: "ghcr.io/Rosen01/velserv:latest"
+    image: "rosen01/velserv:latest"
     restart: unless-stopped
     devices:
       - /dev/serial/by-id/usb-Velleman_Projects_VMB1USB_Velbus_USB_interface-if00:/dev/ttyACM0

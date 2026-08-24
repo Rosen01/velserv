@@ -1,7 +1,7 @@
 services:
   velserv:
     container_name: velserv
-    image: "ghcr.io/Rosen01/velserv:latest"
+    image: "rosen01/velserv:latest"
     restart: unless-stopped
     devices:
       - /dev/serial/by-id/usb-Velleman_Projects_VMB1USB_Velbus_USB_interface-if00:/dev/ttyACM0
