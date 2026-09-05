@@ -174,12 +174,13 @@ static void bridge_reconnect(int fd_seen, const char *why)
 	pthread_mutex_unlock(&mutex1);
 }
 
-void *sock_to_com()
+void *sock_to_com(void *arg)
 {
-   unsigned char buffer[100];
-   unsigned char recv_data[1];
-   int start_recv = 0, valid = 0, m = 0, bytes_in_string = 0, bytes_recieved, fd_used;
-   char message[8];
+	(void)arg;
+   	unsigned char buffer[100];
+   	unsigned char recv_data[1];
+   	int start_recv = 0, valid = 0, m = 0, bytes_in_string = 0, bytes_recieved, fd_used;
+   	char message[8];
    
 	while(1)
 	{
@@ -278,12 +279,13 @@ void *sock_to_com()
 	}
 }
 
-void *com_to_sock()
+void *com_to_sock(void *arg)
 {
-   unsigned char buffer[100];
-   unsigned char recv_data[1];
-   int start_recv = 0, valid = 0, m = 0, bytes_in_string = 0, bytes_recieved, fd_used;
-   char message[8];
+	(void)arg;
+   	unsigned char buffer[100];
+   	unsigned char recv_data[1];
+   	int start_recv = 0, valid = 0, m = 0, bytes_in_string = 0, bytes_recieved, fd_used;
+   	char message[8];
    
 	while(1)
 	{
@@ -366,8 +368,9 @@ void *com_to_sock()
 	}
 }
 
-void *server()
+void *server(void *arg)
 {
+	(void)arg;
 	/* master file descriptor list */
 	fd_set master;
 
@@ -395,7 +398,7 @@ void *server()
 
 	/* for setsockopt() SO_REUSEADDR, below */
 	int yes = 1;
-	int addrlen;
+	socklen_t addrlen;
 	int i, j;
 	char *ip_add_arr[100] = {0};
 
@@ -531,6 +534,15 @@ void *server()
 						{
 							fprintf(stdout,"Velserv: accepting connection\n");
 						}
+						if (newfd >= (int)(sizeof(ip_add_arr) / sizeof(ip_add_arr[0])))
+						{
+							if (verbose>3)
+							{
+								fprintf(stderr,"Velserv: too many connections, rejecting socket %d\n", newfd);
+							}
+							close(newfd);
+							continue;
+						}
 						FD_SET(newfd, &master); /* add to master set */
 
 						if(newfd > fdmax)
@@ -565,7 +577,6 @@ void *server()
 							if (verbose>3)
 							{
 								fprintf(stdout,"Velserv: %s on socket %d hung up\n",ip_add_arr[i], i);
-								free(ip_add_arr[i]);
 							}
 						}
 						else
@@ -577,6 +588,8 @@ void *server()
 						}
 						/* close it... */
 						close(i);
+						free(ip_add_arr[i]);
+						ip_add_arr[i] = NULL;
 						/* remove from master set */
 						FD_CLR(i, &master);
 						if (i < FD_SETSIZE)
@@ -713,7 +726,7 @@ void *server()
 			}
 		}
 	}
-	while (i < sizeof(ip_add_arr))
+	for (i = 0; i < (int)(sizeof(ip_add_arr) / sizeof(ip_add_arr[0])); i++)
 	{
 		free(ip_add_arr[i]);
 	}
@@ -778,60 +791,70 @@ static void parse_params(int argc, char **argv)
 	    break;
 	switch(c) {
 		case 'a':
-		IP_ADDRESS = strdup (optarg);
-		break;
+			IP_ADDRESS = strdup (optarg);
+			break;
 		case 'p':
-		PORT = atoi(strdup (optarg));
-		break;
+			{
+				char *endptr = NULL;
+				long parsed_port = strtol(optarg, &endptr, 10);
+				if (*optarg == '\0' || *endptr != '\0' || parsed_port < 1 || parsed_port > 65535)
+				{
+					fprintf(stderr, "Velserv: invalid port '%s'\n", optarg);
+					exit(EXIT_FAILURE);
+				}
+				PORT = (unsigned int)parsed_port;
+			}
+			break;
 	    case 'd':
-		devicename = strdup (optarg);
-		break;
+			devicename = strdup (optarg);
+			break;
 		case 's':
-		server_on = 1;
-		client_on = 0;
-		break;
+			server_on = 1;
+			client_on = 0;
+			break;
 		case 'c':
-		server_on = 0;
-		client_on = 1;
-		break;
+			server_on = 0;
+			client_on = 1;
+			break;
 	    case 'f':
-		foreground = 1;
-		break;
+			foreground = 1;
+			break;
 	    case 'h':
-		usage (stdout, 0);
-	    case 'v':
-		verbose++;
-		foreground = 1;
-		break;
+			usage (stdout, 0);
+			break;
+		case 'v':
+			verbose++;
+			foreground = 1;
+			break;
 	    case 'V':
-		version (stdout, 0);
-	    exit (0);
+			version (stdout, 0);
+	    	break;
 		case '?':
-		usage (stdout, 0);
+			usage (stdout, 0);
+			break;
+		}
 	}
-    }
 }
 
 
 int main (int argc, char **argv)
 {
 
-   char com_mess[100];
+   	char com_mess[100];
 
-   struct termios oldtio, newtio;       //place for old and new port settings for serial port
+   	struct termios oldtio, newtio;       //place for old and new port settings for serial port
 
+   	pthread_t thread1, thread2, thread3;
+   	int iret1, iret2, iret3;
+   	int RTS_flag;
+   	int DTR_flag;
 
-   pthread_t thread1, thread2, thread3;
-   int  iret1, iret2, iret3;
-   int RTS_flag;
-   int DTR_flag;
-
-   /*###################################################################################################
-     #		read the parameters from the command line (and display them)							   #
-	 ###################################################################################################
-   */
+   	/*###################################################################################################
+      #		read the parameters from the command line (and display them)							   #
+	  ###################################################################################################
+   	*/
    
-   parse_params (argc, argv);
+   	parse_params (argc, argv);
 	
     if (optind > argc) 
 	{
@@ -854,14 +877,14 @@ int main (int argc, char **argv)
 		printf(   "Server mode   : %i\n",server_on); //output the received setup parameters
 	}
 
-signal(SIGIO, SIG_IGN);
-signal(SIGPIPE, SIG_IGN);
-signal(SIGTERM, handle_sigterm);
+	signal(SIGIO, SIG_IGN);
+	signal(SIGPIPE, SIG_IGN);
+	signal(SIGTERM, handle_sigterm);
 
-  /*################################################################################################
-    #		command to configure comports, wierd but needed to use the velbus interface			   #
-	################################################################################################
-  */
+  	/*################################################################################################
+      #		command to configure comports, wierd but needed to use the velbus interface			   #
+	  ################################################################################################
+  	*/
 	if(client_on)
 	{
 		sprintf(com_mess,"/bin/stty -F %s 9600 crtscts",devicename);
@@ -915,7 +938,12 @@ signal(SIGTERM, handle_sigterm);
     	
 	if (server_on)
 	{
-		iret3 = pthread_create( &thread3, NULL, server, NULL);
+		iret3 = pthread_create(&thread3, NULL, server, NULL);
+		if (iret3 != 0)
+		{
+			fprintf(stderr, "Velserv: cannot start server thread\n");
+			exit(EXIT_FAILURE);
+		}
 	}
 		
 	/*##################################################################################################
@@ -992,8 +1020,19 @@ signal(SIGTERM, handle_sigterm);
 		}
 
 
-		iret1 = pthread_create( &thread1, NULL, sock_to_com, NULL);
-		iret2 = pthread_create( &thread2, NULL, com_to_sock, NULL);
+		iret1 = pthread_create(&thread1, NULL, sock_to_com, NULL);
+		if (iret1 != 0)
+		{
+			fprintf(stderr, "Velserv: cannot start socket-to-serial thread\n");
+			exit(EXIT_FAILURE);
+		}
+
+		iret2 = pthread_create(&thread2, NULL, com_to_sock, NULL);
+		if (iret2 != 0)
+		{
+			fprintf(stderr, "Velserv: cannot start serial-to-socket thread\n");
+			exit(EXIT_FAILURE);
+		}
 	}
 	
     while (keep_running) 
